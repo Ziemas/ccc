@@ -89,7 +89,7 @@ static TypeName resolve_c_type_name(const std::map<s32, const StabsType*>& types
 			return {"/* range */ void*", {}};
 		}
 		case StabsTypeDescriptor::STRUCT: {
-			return {"/* struct */ void*", {}};
+			return {"", {}};
 		}
 		case StabsTypeDescriptor::UNION: {
 			return {"/* union */ void*", {}};
@@ -127,7 +127,8 @@ static const TypeName& lookup_type_name(s32 type_number, const std::map<s32, Typ
 	return iterator->second;
 }
 
-std::optional<AstNode> stabs_symbol_to_ast(const StabsSymbol& symbol, const std::map<s32, TypeName>& type_names) {
+std::optional<std::vector<AstNode>> stabs_symbol_to_ast(const StabsSymbol& symbol, const std::map<s32, TypeName>& type_names) {
+	std::vector<AstNode> nodes_to_add;
 	if(symbol.type.has_body) {
 		if(symbol.type.descriptor == StabsTypeDescriptor::TYPE_REFERENCE) {
 			StabsType* referenced_type = symbol.type.type_reference.type.get();
@@ -137,9 +138,16 @@ std::optional<AstNode> stabs_symbol_to_ast(const StabsSymbol& symbol, const std:
 			verify(!symbol.type.anonymous && referenced_type && !referenced_type->anonymous,
 				"error: Invalid type name: %s.\n", symbol.raw.c_str());
 			auto type_name = lookup_type_name(referenced_type->type_number, type_names);
-			return typedef_node(type_name.first_part, symbol.name);
+
+			auto node = typedef_node(type_name.first_part, symbol.name);
+			node.typedef_type.type_name_hackery.emplace_back(
+				stabs_field_to_ast({false, 0, 0, *referenced_type, symbol.name}, type_names));
+
+			nodes_to_add.push_back(node);
+			return nodes_to_add;
 		} else {
-		return stabs_field_to_ast({false, 0, 0, symbol.type, symbol.name}, type_names);
+			nodes_to_add.push_back(stabs_field_to_ast({false, 0, 0, symbol.type, symbol.name}, type_names));
+			return nodes_to_add;
 		}
 	} else {
 		return std::nullopt;

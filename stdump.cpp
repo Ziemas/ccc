@@ -120,11 +120,13 @@ static std::vector<AstNode> symbols_to_ast(const std::vector<StabsSymbol>& symbo
 	std::vector<AstNode> ast_nodes;
 	for(const StabsSymbol& symbol : symbols) {
 		if(is_data_type(symbol)) {
-			std::optional<AstNode> node = stabs_symbol_to_ast(symbol, type_names);
+			auto node = stabs_symbol_to_ast(symbol, type_names);
 			if(node.has_value()) {
-				node->top_level = true;
-				node->symbol = &symbol;
-				ast_nodes.emplace_back(std::move(*node));
+				for (auto &n: node.value()){
+					n.top_level = true;
+					n.symbol = &symbol;
+					ast_nodes.emplace_back(std::move(n));
+				}
 			}
 		}
 	}

@@ -343,6 +343,7 @@ struct AstNode {
 	} struct_or_union;
 	struct {
 		std::string type_name;
+		std::vector<AstNode> type_name_hackery;
 	} typedef_type;
 	const StabsSymbol* symbol = nullptr;
 	// Fields below populated by deduplicate_type.
@@ -358,7 +359,7 @@ struct FieldInfo {
 	const StabsType& type;
 	const std::string& name;
 };
-std::optional<AstNode> stabs_symbol_to_ast(const StabsSymbol& symbol, const std::map<s32, TypeName>& type_names);
+std::optional<std::vector<AstNode>> stabs_symbol_to_ast(const StabsSymbol& symbol, const std::map<s32, TypeName>& type_names);
 std::vector<AstNode> deduplicate_ast(const std::vector<std::pair<std::string, std::vector<AstNode>>>& per_file_ast);
 
 // *****************************************************************************

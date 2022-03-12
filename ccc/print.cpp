@@ -75,6 +75,72 @@ void print_c_forward_declarations(FILE* output, const std::vector<AstNode>& ast_
 	}
 }
 
+void print_c_ast_struct(FILE* output, const AstNode& node, s32 depth, s32 absolute_parent_offset) {
+	if(node.descriptor == AstNodeDescriptor::STRUCT) {
+		fprintf(output, "struct");
+	} else {
+		fprintf(output, "union");
+	}
+	fprintf(output, " %s", node.name.c_str());
+	const std::vector<AstBaseClass>& base_classes = node.struct_or_union.base_classes;
+	if(base_classes.size() > 0) {
+		fprintf(output, " :");
+		for(size_t i = 0; i < base_classes.size(); i++) {
+			const AstBaseClass& base_class = base_classes[i];
+			fprintf(output, " /* %x */ %s", base_class.offset, base_class.type_name.c_str());
+			if(i != base_classes.size() - 1) {
+				fprintf(output, ",");
+			}
+		}
+	}
+	fprintf(output, " {\n");
+	for(const AstNode& child : node.struct_or_union.fields) {
+		print_c_ast_node(output, child, depth + 1, absolute_parent_offset + node.offset);
+	}
+	indent(output, depth);
+	printf("}");
+}
+
+void print_c_ast_typedef(FILE* output, const AstNode& node, s32 depth, s32 absolute_parent_offset) {
+	if (node.typedef_type.type_name_hackery.empty()) {
+		printf("typedef %s", node.typedef_type.type_name.c_str());
+		fprintf(output, " %s", node.name.c_str());
+		return;
+	}
+
+	auto &n = node.typedef_type.type_name_hackery.front();
+
+	switch (n.descriptor) {
+		case AstNodeDescriptor::STRUCT: {
+			printf("\ntypedef ");
+			print_c_ast_struct(output, n, depth, absolute_parent_offset);
+			printf(" %s", node.name.c_str());
+			break;
+		}
+		case AstNodeDescriptor::TYPEDEF: {
+			print_c_ast_typedef(output, n, depth, absolute_parent_offset);
+
+		}
+
+		default: {
+			// hackery
+			if (node.typedef_type.type_name == "*") {
+				fprintf(output, "typedef %s*", node.name.substr(0, node.name.length()-3).c_str());
+			} else {
+				fprintf(output, "typedef %s", node.typedef_type.type_name.c_str());
+			}
+			fprintf(output, " %s", node.name.c_str());
+		}
+	}
+
+	//if (n.descriptor == AstNodeDescriptor::STRUCT) {
+	//} else if (n.descriptor == AstNodeDescriptor::LEAF) {
+	//	printf("typedef %s", node.typedef_type.type_name.c_str());
+	//	fprintf(output, " %s", node.name.c_str());
+	//} else {
+	//}
+}
+
 void print_c_ast_node(FILE* output, const AstNode& node, s32 depth, s32 absolute_parent_offset) {
 	indent(output, depth);
 	if(node.is_static) {
@@ -109,34 +175,11 @@ void print_c_ast_node(FILE* output, const AstNode& node, s32 depth, s32 absolute
 		}
 		case AstNodeDescriptor::STRUCT:
 		case AstNodeDescriptor::UNION: {
-			if(node.descriptor == AstNodeDescriptor::STRUCT) {
-				fprintf(output, "struct");
-			} else {
-				fprintf(output, "union");
-			}
-			fprintf(output, " %s", node.name.c_str());
-			const std::vector<AstBaseClass>& base_classes = node.struct_or_union.base_classes;
-			if(base_classes.size() > 0) {
-				fprintf(output, " :");
-				for(size_t i = 0; i < base_classes.size(); i++) {
-					const AstBaseClass& base_class = base_classes[i];
-					fprintf(output, " /* %x */ %s", base_class.offset, base_class.type_name.c_str());
-					if(i != base_classes.size() - 1) {
-						fprintf(output, ",");
-					}
-				}
-			}
-			fprintf(output, " {\n");
-			for(const AstNode& child : node.struct_or_union.fields) {
-				print_c_ast_node(output, child, depth + 1, absolute_parent_offset + node.offset);
-			}
-			indent(output, depth);
-			printf("}");
+			print_c_ast_struct(output, node, depth, absolute_parent_offset);
 			break;
 		}
 		case AstNodeDescriptor::TYPEDEF: {
-			printf("typedef %s", node.typedef_type.type_name.c_str());
-			fprintf(output, " %s", node.name.c_str());
+			print_c_ast_typedef(output, node, depth, absolute_parent_offset);
 			break;
 		}
 	}
@@ -200,6 +243,11 @@ static void print_json_ast_node(FILE* output, const AstNode& node, s32 depth) {
 		case AstNodeDescriptor::TYPEDEF: {
 			indent(output, depth + 1); fprintf(output, "\"type\": \"typedef\",\n");
 			indent(output, depth + 1); fprintf(output, "\"type_name\": \"%s\",\n", node.typedef_type.type_name.c_str());
+			if (!node.typedef_type.type_name_hackery.empty()) {
+				for (auto const &t: node.typedef_type.type_name_hackery) {
+					print_json_ast_node(output, t, depth + 2);
+				}
+			}
 			break;
 		}
 	}
